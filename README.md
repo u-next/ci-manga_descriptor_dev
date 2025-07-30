@@ -18,32 +18,43 @@ A modular, maintainable refactoring of the manga description generation system. 
 
 ## 📁 Project Structure
 
+### Current Implementation (v0.1.0)
 ```
 ci-manga_descriptor_dev/
 ├── README.md                  # This file
-├── REFACTORING_PLAN.md       # Detailed refactoring strategy
-├── IMPLEMENTATION_GUIDE.md   # Step-by-step implementation
-├── main.py                   # Entry point (future)
-├── config.py                 # Configuration classes (future)
-├── models/
-│   ├── README.md            # AI model operations
-│   ├── generator.py         # Description generation logic
-│   ├── judge.py            # Description evaluation logic
-│   └── schemas.py          # Pydantic schemas for structured output
+├── SHORT_TERM_REFACTORING_PLAN.md  # Original refactoring strategy
+├── __init__.py               # Package initialization
+├── example_usage.py          # Demonstration of all components
+├── infrastructure/
+│   ├── __init__.py          # Infrastructure module
+│   ├── gcp_setup.py         # GCP auth, Vertex AI, logging setup
+│   └── README.md            # Infrastructure documentation
+├── io/
+│   ├── __init__.py          # I/O module  
+│   ├── data_loader.py       # CSV loading & DataFrame preparation
+│   └── output_manager.py    # GCS/local result saving & metrics
 ├── processing/
-│   ├── README.md           # Workflow orchestration
-│   ├── workflow.py         # Main workflow orchestration
-│   ├── consensus.py        # Consensus & verification logic
-│   └── normalization.py   # Description structure normalization
+│   ├── __init__.py          # Processing module
+│   ├── workflow.py          # Refactored workflow orchestration
+│   └── README.md            # Processing documentation
 ├── utils/
-│   ├── README.md           # Utility functions
+│   ├── __init__.py          # Utilities module
 │   ├── content_detection.py # Adult content, doujinshi detection
 │   ├── title_processing.py  # Title cleaning, variations
 │   ├── json_extraction.py   # JSON parsing utilities
-│   └── grounding.py        # Grounding-related functions
-├── io/
-│   ├── data_loader.py      # CSV loading & preparation
-│   └── output_manager.py   # GCS/local output handling
+│   └── README.md            # Utilities documentation
+└── models/
+    └── README.md            # AI model operations (planned)
+```
+
+### Target Structure (Future)
+```
+├── main.py                   # Entry point 
+├── config.py                 # Configuration classes
+├── models/
+│   ├── generator.py         # Description generation logic
+│   ├── judge.py            # Description evaluation logic
+│   └── schemas.py          # Pydantic schemas for structured output
 ├── cli.py                  # Command-line interface
 └── tests/                  # Comprehensive testing infrastructure
     ├── unit/
@@ -85,14 +96,19 @@ gcloud config set project unext-ai-sandbox
 - [x] **System Analysis**: Comprehensive analysis of source system
 - [x] **Architecture Design**: Target modular architecture defined
 - [x] **Documentation**: Refactoring plan and implementation guide
+- [x] **Utility Extraction**: Content detection, title processing, JSON utilities extracted to `utils/`
+- [x] **Infrastructure Setup**: GCP authentication and Vertex AI initialization extracted to `infrastructure/`
+- [x] **I/O Operations**: Data loading and output saving extracted to `io/`
+- [x] **Workflow Breakdown**: Monolithic 273-line function split into 6 manageable components in `processing/`
+- [x] **Module Structure**: Complete package structure with proper `__init__.py` files
+- [x] **Example Usage**: Working demonstration script showing all components
 
 ### 🔄 In Progress
-- [ ] **Utility Extraction**: Content detection, title processing, JSON utilities
-- [ ] **Workflow Breakdown**: Split monolithic workflow function
-- [ ] **Module Creation**: Separate models, processing, utils, io modules
+- [ ] **Integration Testing**: Connect refactored modules with original system
+- [ ] **Configuration System**: Replace hard-coded values with config classes
+- [ ] **Model Components**: Extract AI model interaction logic
 
 ### 📅 Planned
-- [ ] **Configuration System**: Replace hard-coded values
 - [ ] **Error Handling**: Robust retry and fallback mechanisms  
 - [ ] **Testing Infrastructure**: Unit and integration tests
 - [ ] **Performance Validation**: Ensure no regression
