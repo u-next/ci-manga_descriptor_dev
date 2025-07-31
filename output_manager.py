@@ -19,6 +19,9 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+# Import centralized logging
+from ..utils.logging import get_logger, log_data_operation, log_performance, log_pipeline_stage
+
 # Check for optional dependencies
 try:
     import gcsfs
@@ -33,6 +36,7 @@ except ImportError:
     GCS_CLIENT_AVAILABLE = False
 
 
+@log_performance("Save Workflow Results")
 def save_workflow_results(
     df: pd.DataFrame,
     config,  # MangaAgentConfig
@@ -61,13 +65,16 @@ def save_workflow_results(
         ValueError: If input DataFrame is invalid
         Exception: If saving operation fails
     """
+    logger = get_logger()
+    
     if not isinstance(df, pd.DataFrame):
+        logger.error("Input for saving is not a pandas DataFrame")
         raise ValueError("Input for saving is not a pandas DataFrame. Cannot save.")
 
-    if local_output:
-        print(f"\\n--- Saving workflow results locally (test mode) ---")
-    else:
-        print(f"\\n--- Attempting to save workflow results to GCS Bucket: {gcs_bucket_name} ---")
+    # Log the save operation details
+    save_target = "local filesystem" if local_output else f"GCS bucket: {gcs_bucket_name}"
+    log_data_operation(f"Starting workflow results save", data_type="DataFrame", 
+                      details={"target": save_target, "rows": len(df), "columns": len(df.columns)})
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_filename = f"manga_descriptions_run_{run_id}.csv"
@@ -82,22 +89,28 @@ def save_workflow_results(
         metrics_location = f"gs://{gcs_bucket_name}/{gcs_metrics_folder_path.strip('/')}/{metrics_filename}"
 
     try:
-        # Prepare DataFrame for saving
-        df_to_save = prepare_dataframe_for_saving(df)
+        with log_pipeline_stage("Save Results", {"run_id": run_id, "target": save_target}):
+            # Prepare DataFrame for saving
+            df_to_save = prepare_dataframe_for_saving(df)
+            
+            # Save DataFrame
+            if local_output:
+                save_dataframe_locally(df_to_save, output_dir, csv_filename)
+            else:
+                save_dataframe_to_gcs(df_to_save, gcs_bucket_name, gcs_csv_folder_path, csv_filename)
         
-        # Save DataFrame
-        if local_output:
-            save_dataframe_locally(df_to_save, output_dir, csv_filename)
-        else:
-            save_dataframe_to_gcs(df_to_save, gcs_bucket_name, gcs_csv_folder_path, csv_filename)
+        with log_pipeline_stage("Save Metrics", {"run_id": run_id}):
+            # Calculate and save metrics
+            metrics = calculate_workflow_metrics(df, config, run_id, csv_location, local_output)
+            
+            if local_output:
+                save_metrics_locally(metrics, output_dir, metrics_filename)
+            else:
+                save_metrics_to_gcs(metrics, gcs_bucket_name, gcs_metrics_folder_path, metrics_filename)
         
-        # Calculate and save metrics
-        metrics = calculate_workflow_metrics(df, config, run_id, csv_location, local_output)
-        
-        if local_output:
-            save_metrics_locally(metrics, output_dir, metrics_filename)
-        else:
-            save_metrics_to_gcs(metrics, gcs_bucket_name, gcs_metrics_folder_path, metrics_filename)
+        log_data_operation("Workflow results save completed", data_type="Results", 
+                          details={"run_id": run_id, "csv_location": csv_location, 
+                                  "metrics_location": metrics_location})
         
         return {
             'csv_location': csv_location,
@@ -106,8 +119,8 @@ def save_workflow_results(
         }
         
     except Exception as e:
-        print(f"\\nAn error occurred while saving results: {e}")
-        traceback.print_exc()
+        logger.error(f"Failed to save workflow results: {e}")
+        logger.debug(f"Error traceback: {traceback.format_exc()}")
         raise
 
 
@@ -135,6 +148,7 @@ def prepare_dataframe_for_saving(df: pd.DataFrame) -> pd.DataFrame:
     return df_to_save
 
 
+@log_performance("Save DataFrame Locally")
 def save_dataframe_locally(df: pd.DataFrame, output_dir: str, filename: str) -> str:
     """
     Save DataFrame to local filesystem.
@@ -147,13 +161,22 @@ def save_dataframe_locally(df: pd.DataFrame, output_dir: str, filename: str) -> 
     Returns:
         Path to saved file
     """
+    logger = get_logger()
+    
     os.makedirs(output_dir, exist_ok=True)
     local_path = f"{output_dir}/{filename}"
+    
     df.to_csv(local_path, index=False, encoding='utf-8-sig')
-    print(f"DataFrame saved locally: {local_path}")
+    
+    # Get file size for logging
+    file_size = os.path.getsize(local_path)
+    log_data_operation("DataFrame saved locally", data_type="CSV", 
+                      details={"path": local_path, "rows": len(df), "file_size_bytes": file_size})
+    
     return local_path
 
 
+@log_performance("Save DataFrame to GCS")
 def save_dataframe_to_gcs(
     df: pd.DataFrame, 
     bucket_name: str, 
@@ -172,16 +195,23 @@ def save_dataframe_to_gcs(
     Returns:
         GCS URI of saved file
     """
+    logger = get_logger()
     gcs_uri = f"gs://{bucket_name}/{folder_path.strip('/')}/{filename}"
+    
+    log_data_operation("Starting GCS save", data_type="CSV", 
+                      details={"gcs_uri": gcs_uri, "rows": len(df), "method": "gcsfs" if GCSFS_AVAILABLE else "gcs_client"})
     
     if GCSFS_AVAILABLE:
         # Direct GCS save using gcsfs
         df.to_csv(gcs_uri, index=False, encoding='utf-8-sig')
-        print(f"DataFrame saved to GCS: {gcs_uri}")
+        log_data_operation("DataFrame saved to GCS via gcsfs", data_type="CSV", 
+                          details={"gcs_uri": gcs_uri})
     elif GCS_CLIENT_AVAILABLE:
         # Fallback: save locally then upload using google-cloud-storage
         local_temp_path = f"/tmp/{filename}"
         df.to_csv(local_temp_path, index=False, encoding='utf-8-sig')
+        
+        file_size = os.path.getsize(local_temp_path)
         
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
@@ -189,8 +219,10 @@ def save_dataframe_to_gcs(
         blob.upload_from_filename(local_temp_path)
         
         os.remove(local_temp_path)
-        print(f"DataFrame uploaded to GCS: {gcs_uri}")
+        log_data_operation("DataFrame uploaded to GCS via client", data_type="CSV", 
+                          details={"gcs_uri": gcs_uri, "file_size_bytes": file_size})
     else:
+        logger.error("Neither gcsfs nor google-cloud-storage is available for GCS operations")
         raise ImportError(
             "Neither gcsfs nor google-cloud-storage is available. "
             "Install one of them to save to GCS."
@@ -229,22 +261,22 @@ def calculate_workflow_metrics(
     
     # Calculate success/failure rates
     if 'final_status' in df.columns:
-        success_count = (df['final_status'] == 'SUCCESS').sum()
-        total_count = len(df)
-        success_rate = success_count / total_count if total_count > 0 else 0
-        failure_rate = 1 - success_rate
+        success_count = int((df['final_status'] == 'SUCCESS').sum())
+        total_count = int(len(df))
+        success_rate = float(success_count / total_count) if total_count > 0 else 0.0
+        failure_rate = float(1 - success_rate)
     else:
         success_rate = 'N/A'
         failure_rate = 'N/A'
     
     # Calculate token usage
     if 'total_input_tokens_workflow' in df.columns:
-        total_input_tokens = df['total_input_tokens_workflow'].sum()
+        total_input_tokens = int(df['total_input_tokens_workflow'].sum())
     else:
         total_input_tokens = 'N/A'
         
     if 'total_output_tokens_workflow' in df.columns:
-        total_output_tokens = df['total_output_tokens_workflow'].sum()
+        total_output_tokens = int(df['total_output_tokens_workflow'].sum())
     else:
         total_output_tokens = 'N/A'
     
@@ -259,7 +291,7 @@ def calculate_workflow_metrics(
         "generator_models_used": config.generator_model_ids,
         "judge_model_used": config.judge_model_id,
         "enable_grounding": config.enable_grounding,
-        "num_titles_processed": len(df),
+        "num_titles_processed": int(len(df)),
         "test_mode": local_output,
         "timestamp": datetime.now().isoformat()
     }
