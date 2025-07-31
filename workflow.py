@@ -18,6 +18,9 @@ import re
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
 
+# Import centralized logging
+from ..utils.logging import get_logger, log_pipeline_stage, log_performance, log_model_operation
+
 # Note: In a real implementation, these imports would need to be updated
 # to reference the actual location of these functions and classes
 
@@ -35,6 +38,7 @@ class WorkflowResult:
     total_output_tokens_workflow: int
 
 
+@log_performance("Manga Description Workflow")
 def execute_manga_description_workflow(
     manga_title: str,
     internal_index: str,
@@ -56,30 +60,46 @@ def execute_manga_description_workflow(
     Returns:
         Dictionary containing all workflow results and metadata
     """
-    print(f"\\n--- Starting Workflow for: {manga_title} (Index: {internal_index}) ---")
+    logger = get_logger()
     
-    # Step 1: Preprocess authors
-    authors = preprocess_authors_step(manga_title, internal_index, authors_info_json, config)
-    
-    # Step 2: Generate descriptions  
-    descriptions_result = generate_descriptions_step(manga_title, internal_index, authors, config)
-    valid_descriptions, generator_details, gen_tokens = descriptions_result
-    
-    # Step 3: Enhanced processing (normalization + consensus)
-    enhanced_result = enhanced_processing_step(valid_descriptions, manga_title, config)
-    
-    # Step 4: Final decision (consensus vs judge)
-    final_result, judge_tokens = decide_final_output_step(
-        enhanced_result, valid_descriptions, manga_title, config
-    )
-    
-    # Step 5: Format and return results
-    total_tokens = (gen_tokens[0] + judge_tokens[0], gen_tokens[1] + judge_tokens[1])
-    return format_workflow_results(
-        final_result, generator_details, total_tokens, config
-    )
+    with log_pipeline_stage("Manga Description Workflow", 
+                           {"manga_title": manga_title, "index": internal_index}):
+        
+        # Step 1: Preprocess authors
+        with log_pipeline_stage("Author Preprocessing"):
+            authors = preprocess_authors_step(manga_title, internal_index, authors_info_json, config)
+        
+        # Step 2: Generate descriptions  
+        with log_pipeline_stage("Description Generation"):
+            descriptions_result = generate_descriptions_step(manga_title, internal_index, authors, config)
+            valid_descriptions, generator_details, gen_tokens = descriptions_result
+        
+        # Step 3: Enhanced processing (normalization + consensus)
+        with log_pipeline_stage("Enhanced Processing"):
+            enhanced_result = enhanced_processing_step(valid_descriptions, manga_title, config)
+        
+        # Step 4: Final decision (consensus vs judge)
+        with log_pipeline_stage("Final Decision"):
+            final_result, judge_tokens = decide_final_output_step(
+                enhanced_result, valid_descriptions, manga_title, config
+            )
+        
+        # Step 5: Format and return results
+        with log_pipeline_stage("Result Formatting"):
+            total_tokens = (gen_tokens[0] + judge_tokens[0], gen_tokens[1] + judge_tokens[1])
+            workflow_result = format_workflow_results(
+                final_result, generator_details, total_tokens, config
+            )
+            
+            # Log final workflow metrics
+            logger.info(f"Workflow completed: {workflow_result.get('final_status', 'UNKNOWN')} | "
+                       f"Total tokens: {total_tokens[0]}→{total_tokens[1]} | "
+                       f"Models used: {len(generator_details)}")
+            
+            return workflow_result
 
 
+@log_performance("Preprocess Authors")
 def preprocess_authors_step(
     manga_title: str, 
     internal_index: str, 
@@ -98,16 +118,19 @@ def preprocess_authors_step(
     Returns:
         List of preprocessed author names
     """
-    print("--- Preprocessing Author Information ---")
+    logger = get_logger()
+    
+    logger.info(f"Preprocessing authors for '{manga_title}'")
     
     # This would call the actual _preprocess_manga_authors function
     # from the original file or a models module
+    # TODO: Implement actual author preprocessing logic
     preprocessed_authors = []  # Placeholder
     
     if preprocessed_authors:
-        print(f"  Authors for '{manga_title}': {', '.join(preprocessed_authors)}")
+        logger.info(f"Authors processed: {', '.join(preprocessed_authors)}")
     else:
-        print(f"  No author information available for '{manga_title}'")
+        logger.warning(f"No author information available for '{manga_title}'")
     
     return preprocessed_authors
 
