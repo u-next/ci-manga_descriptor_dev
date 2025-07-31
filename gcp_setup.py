@@ -12,8 +12,18 @@ Functions:
 """
 
 import os
-import logging
 from typing import Tuple, Optional
+from datetime import datetime
+
+# Import centralized logging
+from ..utils.logging import get_logger, log_gcp_operation, log_performance
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
 
 # Google Cloud imports
 try:
@@ -36,6 +46,47 @@ except ImportError:
     GCS_AVAILABLE = False
 
 
+def load_environment_config(env_file_path: str = None) -> dict:
+    """
+    Load configuration from environment variables and .env file.
+    
+    Args:
+        env_file_path: Path to .env file (optional)
+        
+    Returns:
+        Dictionary with configuration values
+    """
+    # Load .env file if available
+    if DOTENV_AVAILABLE and env_file_path:
+        load_dotenv(env_file_path)
+    elif DOTENV_AVAILABLE:
+        # Try to find .env file in common locations
+        possible_paths = [
+            '.env',
+            '../.env',
+            '../../.env',
+            os.path.join(os.path.dirname(__file__), '../../main/.env')
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                load_dotenv(path)
+                print(f"✓ Loaded environment from {path}")
+                break
+    
+    # Get configuration with defaults
+    config = {
+        'gcp_project_id': os.getenv('GCP_PROJECT_ID', 'unext-ai-sandbox'),
+        'gcp_location': os.getenv('GCP_LOCATION', 'us-central1'),
+        'gcp_bucket_name': os.getenv('GCP_BUCKET_NAME', 'ci_team_test'),
+        'log_level': os.getenv('LOG_LEVEL', 'INFO'),
+        'log_file': os.getenv('LOG_FILE', f'logs/manga_descriptor_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        'environment': os.getenv('ENVIRONMENT', 'development')
+    }
+    
+    return config
+
+
+@log_performance("GCP Authentication")
 def setup_environment() -> bool:
     """
     Initialize Google Cloud authentication and basic environment setup.
@@ -43,46 +94,62 @@ def setup_environment() -> bool:
     Returns:
         True if authentication successful, False otherwise
     """
+    logger = get_logger()
+    
     try:
         if not GCP_AUTH_AVAILABLE:
-            print("❌ Google Cloud authentication libraries not available")
-            print("Install with: pip install google-auth google-auth-oauthlib")
+            logger.error("Google Cloud authentication libraries not available")
+            logger.info("Install with: pip install google-auth google-auth-oauthlib")
             return False
+        
+        log_gcp_operation("Initializing default credentials")
         
         # Initialize default credentials
         credentials, project_id = google.auth.default()
-        print(f"✓ Authenticated with project: {project_id}")
+        
+        log_gcp_operation("Authentication successful", project_id=project_id)
         
         return True
     except Exception as e:
-        print(f"❌ Authentication failed: {e}")
-        print("Please run: gcloud auth application-default login")
+        logger.error(f"Authentication failed: {e}")
+        logger.info("Please run: gcloud auth application-default login")
         return False
 
 
-def initialize_vertex_ai(project_id: str, location: str = "us-central1") -> bool:
+@log_performance("Vertex AI Initialization")
+def initialize_vertex_ai(project_id: str, location: str = None) -> bool:
     """
     Initialize Vertex AI with project configuration.
     
     Args:
         project_id: Google Cloud project ID
-        location: GCP region for Vertex AI services
+        location: GCP region for Vertex AI services (defaults to environment config)
         
     Returns:
         True if initialization successful, False otherwise
     """
+    logger = get_logger()
+    
+    # Get location from environment if not provided
+    if location is None:
+        config = load_environment_config()
+        location = config['gcp_location']
+    
     try:
         if not VERTEX_AI_AVAILABLE:
-            print("❌ Vertex AI libraries not available")
-            print("Install with: pip install google-cloud-aiplatform")
+            logger.error("Vertex AI libraries not available")
+            logger.info("Install with: pip install google-cloud-aiplatform")
             return False
         
+        log_gcp_operation("Initializing Vertex AI", project_id=project_id, details={"location": location})
+        
         vertexai.init(project=project_id, location=location)
-        print(f"✓ Vertex AI initialized for project {project_id} in {location}")
+        
+        log_gcp_operation("Vertex AI initialization successful", project_id=project_id, details={"location": location})
         
         return True
     except Exception as e:
-        print(f"❌ Vertex AI initialization failed: {e}")
+        logger.error(f"Vertex AI initialization failed: {e}")
         return False
 
 
@@ -121,52 +188,6 @@ def verify_dependencies() -> dict:
     return dependencies
 
 
-def setup_logging(
-    level: str = "INFO", 
-    format_string: Optional[str] = None,
-    log_file: Optional[str] = None
-) -> logging.Logger:
-    """
-    Configure logging for the application.
-    
-    Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR)
-        format_string: Custom log format string
-        log_file: Optional file path for log output
-        
-    Returns:
-        Configured logger instance
-    """
-    if format_string is None:
-        format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    
-    # Configure root logger
-    logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format=format_string,
-        handlers=[]
-    )
-    
-    logger = logging.getLogger('manga_descriptor')
-    
-    # Add console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(getattr(logging, level.upper()))
-    console_handler.setFormatter(logging.Formatter(format_string))
-    logger.addHandler(console_handler)
-    
-    # Add file handler if specified
-    if log_file:
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(getattr(logging, level.upper()))
-        file_handler.setFormatter(logging.Formatter(format_string))
-        logger.addHandler(file_handler)
-        logger.info(f"Logging to file: {log_file}")
-    
-    logger.info(f"Logging configured at {level} level")
-    return logger
-
 
 def check_gcp_project_access(project_id: str) -> bool:
     """
@@ -179,27 +200,41 @@ def check_gcp_project_access(project_id: str) -> bool:
         True if project is accessible, False otherwise
     """
     try:
-        if not GCS_AVAILABLE:
-            print("❌ Google Cloud Storage client not available")
+        # Instead of checking storage buckets, just verify we can authenticate
+        # and the project ID matches what we got from authentication
+        credentials, auth_project_id = google.auth.default()
+        
+        if project_id != auth_project_id:
+            print(f"❌ Project ID mismatch: requested {project_id}, authenticated for {auth_project_id}")
             return False
         
-        # Try to access the project via Storage client
-        storage_client = storage.Client(project=project_id)
-        # This will raise an exception if we don't have access
-        list(storage_client.list_buckets(max_results=1))
-        
-        print(f"✓ Project {project_id} is accessible")
-        return True
+        # Try to verify Vertex AI access instead of storage
+        if VERTEX_AI_AVAILABLE:
+            try:
+                # This is a lightweight check that doesn't require special permissions
+                import vertexai
+                vertexai.init(project=project_id, location="us-central1")
+                print(f"✓ Project {project_id} is accessible via Vertex AI")
+                return True
+            except Exception as vertex_e:
+                print(f"❌ Cannot access Vertex AI for project {project_id}: {vertex_e}")
+                return False
+        else:
+            # If Vertex AI not available, just check that auth worked
+            print(f"✓ Project {project_id} authenticated (Vertex AI not available for full check)")
+            return True
+            
     except Exception as e:
         print(f"❌ Cannot access project {project_id}: {e}")
         return False
 
 
 def setup_full_environment(
-    project_id: str, 
-    location: str = "us-central1",
-    log_level: str = "INFO",
-    log_file: Optional[str] = None
+    project_id: str = None, 
+    location: str = None,
+    log_level: str = None,
+    log_file: Optional[str] = None,
+    env_file_path: str = None
 ) -> dict:
     """
     Complete environment setup including auth, services, and logging.

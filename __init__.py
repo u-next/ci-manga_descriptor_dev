@@ -12,16 +12,16 @@ from .gcp_setup import (
     setup_environment,
     initialize_vertex_ai,
     verify_dependencies,
-    setup_logging,
     check_gcp_project_access,
-    setup_full_environment
+    setup_full_environment,
+    load_environment_config
 )
 
 __all__ = [
     'setup_environment',
     'initialize_vertex_ai', 
     'verify_dependencies',
-    'setup_logging',
     'check_gcp_project_access',
-    'setup_full_environment'
+    'setup_full_environment',
+    'load_environment_config'
 ]
