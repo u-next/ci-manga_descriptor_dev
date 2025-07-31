@@ -1,0 +1,2 @@
+﻿index,manga_title,authors_info,final_status,final_description,total_input_tokens_workflow,total_output_tokens_workflow,generator_details,judge_model_id_used,judge_full_output,judge_finish_reason
+TEST002,ワンピース,"[{""name"": ""尾田 栄一郎""}]",SUCCESS,Mock description for ワンピース,150,200,"[[""gemini-1.5-flash"", ""Mock description 1""]]",gemini-1.5-pro,Mock judge output,STOP

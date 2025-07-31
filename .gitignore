@@ -1,0 +1,81 @@
+# Environment and Configuration Files
+.env
+.env.local
+.env.development
+.env.production
+*.env
+
+# GCP Configuration
+config/
+gcp-config.json
+local-settings.yaml
+service-account-key.json
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and Temporary Files
+*.log
+logs/
+temp/
+tmp/
+*.tmp
+
+# Testing and Coverage
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+.cache
+
+# Application Specific
+output_*/
+results_*/
+data_cache/

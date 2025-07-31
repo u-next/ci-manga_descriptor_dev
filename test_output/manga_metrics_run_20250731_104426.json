@@ -1,0 +1,6 @@
+{
+    "run_id": "20250731_104426",
+    "csv_location": "test_output/manga_descriptions_run_20250731_104426.csv",
+    "workflow_success_rate": 1.0,
+    "workflow_failure_rate": 0.0,
+    "workflow_total_input_tokens": 
