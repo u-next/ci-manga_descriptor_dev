@@ -357,3 +357,45 @@ def save_metrics_to_gcs(
     gcs_uri = f"gs://{bucket_name}/{folder_path.strip('/')}/{filename}"
     print(f"Workflow metrics saved to GCS: {gcs_uri}")
     return gcs_uri
+
+
+@log_performance("Save CSV Output")
+def save_csv_output(df: pd.DataFrame, output_dir: str = "test_output", filename: str = None) -> str:
+    """
+    Simple function to save DataFrame as CSV for testing and inspection.
+    
+    Args:
+        df: DataFrame to save
+        output_dir: Directory to save the CSV (default: test_output)
+        filename: Custom filename (default: auto-generated with timestamp)
+        
+    Returns:
+        Path to saved CSV file
+    """
+    logger = get_logger()
+    
+    # Generate filename if not provided
+    if filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"manga_results_{timestamp}.csv"
+    
+    # Ensure filename has .csv extension
+    if not filename.endswith('.csv'):
+        filename += '.csv'
+    
+    # Prepare DataFrame for saving
+    df_to_save = prepare_dataframe_for_saving(df)
+    
+    # Save CSV
+    csv_path = save_dataframe_locally(df_to_save, output_dir, filename)
+    
+    log_data_operation("CSV output saved", data_type="CSV", 
+                      details={
+                          "path": csv_path,
+                          "rows": len(df),
+                          "columns": len(df.columns),
+                          "output_dir": output_dir,
+                          "filename": filename
+                      })
+    
+    return csv_path

@@ -21,7 +21,8 @@ from .output_manager import (
     save_dataframe_to_gcs,
     save_dataframe_locally,
     calculate_workflow_metrics,
-    prepare_dataframe_for_saving
+    prepare_dataframe_for_saving,
+    save_csv_output
 )
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     'save_dataframe_to_gcs',
     'save_dataframe_locally', 
     'calculate_workflow_metrics',
-    'prepare_dataframe_for_saving'
+    'prepare_dataframe_for_saving',
+    'save_csv_output'
 ]
