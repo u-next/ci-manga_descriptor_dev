@@ -8,16 +8,21 @@ Modules:
     content_detection: Adult content and doujinshi detection
     title_processing: Title cleaning and variation generation
     json_extraction: JSON parsing from mixed-format text
+    author_processing: Author information preprocessing and research
 """
 
 from .content_detection import is_adult_content, is_potential_doujinshi
 from .title_processing import clean_manga_title, generate_title_variations
 from .json_extraction import extract_json_from_text
+from .author_processing import preprocess_manga_authors, research_authors_with_llm, validate_author_name
 
 __all__ = [
     'is_adult_content',
     'is_potential_doujinshi', 
     'clean_manga_title',
     'generate_title_variations',
-    'extract_json_from_text'
+    'extract_json_from_text',
+    'preprocess_manga_authors',
+    'research_authors_with_llm', 
+    'validate_author_name'
 ]
