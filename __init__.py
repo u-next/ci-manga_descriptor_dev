@@ -6,6 +6,7 @@ description generation, broken down into manageable, testable components.
 
 Modules:
     workflow: Main workflow orchestration functions
+    csv_orchestrator: CSV processing and DataFrame orchestration functions
 """
 
 from .workflow import (
@@ -18,6 +19,11 @@ from .workflow import (
     WorkflowResult
 )
 
+from .csv_orchestrator import (
+    process_single_manga_row,
+    process_manga_dataframe
+)
+
 __all__ = [
     'execute_manga_description_workflow',
     'preprocess_authors_step', 
@@ -25,5 +31,7 @@ __all__ = [
     'enhanced_processing_step',
     'decide_final_output_step',
     'format_workflow_results',
-    'WorkflowResult'
+    'WorkflowResult',
+    'process_single_manga_row',
+    'process_manga_dataframe'
 ]
